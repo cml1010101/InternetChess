@@ -26,7 +26,24 @@ request_move:
 Move* ClientBot::findMove(Board* board)
 {
     char buffer[16];
-    
+get_move:
+    memset(buffer, 0, 16);
+    memcpy(buffer, "enter_move", 11);
+    write(newsockfd, buffer, 15);
+    memset(buffer, 0, 16);
+    read(newsockfd, buffer, 15);
+    string token = buffer;
+    if (token == "resign")
+    {
+        return Move::resign();
+    }
+    int srcCol = cols.find(token[0]);
+    int srcRow = token[1] - '0';
+    int destCol = cols.find(token[3]);
+    int destRow = token[4] - '0';
+    Move* move = new Move(Point(srcRow, srcCol), Point(destRow, destCol));
+    if (!board->canMove(move)) goto get_move;
+    return move;
 }
 int hostChessGame()
 {
