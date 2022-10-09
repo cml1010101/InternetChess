@@ -58,7 +58,7 @@ int hostChessGame()
     memset(&hostAddress, 0, sizeof(sockaddr_in));
     hostAddress.sin_family = AF_INET;
     hostAddress.sin_addr.s_addr = INADDR_ANY;
-    hostAddress.sin_port = DEFAULT_PORT;
+    hostAddress.sin_port = htons(DEFAULT_PORT);
     if (bind(sockfd, (sockaddr*)&hostAddress, sizeof(sockaddr_in)) < 0)
     {
         cout << "Error binding" << endl;
@@ -75,7 +75,7 @@ int hostChessGame()
         return 4;
     }
     char buffer[16];
-    memcpy(buffer, "read5483", 9);
+    memcpy(buffer, "ready5483", 10);
     write(newsockfd, buffer, 15);
     memset(buffer, 0, 16);
     read(newsockfd, buffer, 15);
@@ -104,13 +104,70 @@ int hostChessGame()
         game.step();
     }
     cout << "Winner: " << game.getCurrentBoard()->winner ? "Black" : "White";
-    string 
+    memcpy(buffer, "game_over", 10);
+    write(newsockfd, buffer, 15);
+    memcpy(buffer, (game.getCurrentBoard()->winner ? "white" : "black"), 6);
+    write(newsockfd, buffer, 15);
     close(newsockfd);
     close(sockfd);
     return 0;
 }
-int connectChessGame(const char* host)
+int connectChessGame(const char* hostName)
 {
+    char buffer[16];
+    sockaddr_in hostAddress;
+    hostent* host;
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    host = gethostbyname(hostName);
+    memset(&hostAddress, 0, sizeof(sockaddr_in));
+    hostAddress.sin_family = AF_INET;
+    memcpy(&hostAddress.sin_addr.s_addr, host->h_addr, host->h_length);
+    hostAddress.sin_port = htons(DEFAULT_PORT);
+    if (connect(sockfd, (sockaddr*)&hostAddress, sizeof(hostAddress)) < 0)
+    {
+        cout << "Error connecting to " << hostName << endl;
+        return 1;
+    }
+    memset(buffer, 0, 16);
+    read(sockfd, buffer, 15);
+    if (strcmp(buffer, "ready5483") != 0)
+    {
+        cout << "Host technology incompatable\n";
+        return 2;
+    }
+    memcpy(buffer, "ready3845", 10);
+    write(sockfd, buffer, 15);
+    while (true)
+    {
+        read(sockfd, buffer, 15);
+        string cmd = buffer;
+        if (cmd == "print")
+        {
+            memcpy(buffer, "ready", 6);
+            write(sockfd, buffer, 15);
+            size_t stringLength;
+            read(sockfd, &stringLength, sizeof(size_t));
+            char* boardString = new char[stringLength];
+            read(sockfd, boardString, stringLength);
+            cout << boardString;
+        }
+        else if (cmd == "enter_move")
+        {
+            cout << "Please enter your move in format [A1 B2]:";
+            string token;
+            cin >> token;
+            memcpy(buffer, token.c_str(), token.size() + 1);
+            write(sockfd, buffer, 15);
+        }
+        else if (cmd == "game_over")
+        {
+            read(sockfd, buffer, 15);
+            cout << "Winner is " << buffer << endl;
+            break;
+        }
+    }
+    close(sockfd);
+    return 0;
 }
 int main(int argc, char const *argv[])
 {
