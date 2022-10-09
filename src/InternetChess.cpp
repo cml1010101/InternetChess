@@ -1,5 +1,6 @@
 #include <InternetChess.h>
 #include <memory.h>
+#include <arpa/inet.h>
 #include <sstream>
 using namespace std;
 using namespace chess;
@@ -74,6 +75,16 @@ int hostChessGame()
         return 3;
     }
     cout << "Waiting for client" << endl;
+    cout << "Host Name: " << gethostent()->h_name << endl;
+    hostent* hostInfo = gethostent();
+    while (*(hostInfo->h_aliases))
+    {
+        cout << "Alias Name: " << *(hostInfo->h_aliases++) << endl;
+    }
+    while (*(hostInfo->h_addr_list))
+    {
+        cout << "IP Address: " << inet_ntoa(*(in_addr*)(*(hostInfo->h_addr_list++))) << endl;
+    }
     listen(sockfd, 5);
     sockaddr clientAddress;
     socklen_t clientLength = sizeof(clientAddress);
