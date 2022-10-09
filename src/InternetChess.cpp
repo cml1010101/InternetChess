@@ -104,6 +104,7 @@ int hostChessGame()
         game.step();
     }
     cout << "Winner: " << game.getCurrentBoard()->winner ? "Black" : "White";
+    string 
     close(newsockfd);
     close(sockfd);
     return 0;
