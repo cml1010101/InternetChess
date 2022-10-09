@@ -87,7 +87,7 @@ int hostChessGame()
     cout << "Found client" << endl;
     while (game.getCurrentBoard()->winner == -1)
     {
-        cout << game.getCurrentBoard();
+        cout << *game.getCurrentBoard();
         memcpy(buffer, "print", 6);
         write(newsockfd, buffer, 15);
         memset(buffer, 0, 16);
@@ -96,7 +96,7 @@ int hostChessGame()
         {
             string boardString;
             stringstream stream(boardString);
-            stream << game.getCurrentBoard();
+            stream << *game.getCurrentBoard();
             size_t stringLength = boardString.size() + 1;
             write(newsockfd, &stringLength, sizeof(size_t));
             write(newsockfd, boardString.c_str(), stringLength);
