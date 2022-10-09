@@ -169,7 +169,7 @@ int connectChessGame(const char* hostName)
         {
             cout << "Please enter your move in format [A1 B2]: ";
             string token;
-            cin >> token;
+            getline(cin, token);
             memcpy(buffer, token.c_str(), token.size() + 1);
             write(sockfd, buffer, 15);
         }
