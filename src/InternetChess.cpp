@@ -7,20 +7,24 @@ const string cols = "ABCDEFGH";
 int newsockfd;
 Move* HostBot::findMove(Board* board)
 {
-request_move:
     cout << "Please enter your move in format [A1 B2]: ";
     string token;
-    cin >> token;
+    getline(cin, token);
     if (token == "resign")
     {
         return Move::resign();
     }
     int srcCol = cols.find(token[0]);
-    int srcRow = token[1] - '0';
+    int srcRow = token[1] - '1';
     int destCol = cols.find(token[3]);
-    int destRow = token[4] - '0';
+    int destRow = token[4] - '1';
+    cout << "(" << srcRow << ", " << srcCol << "), (" << destRow << ", " << destCol << ")\n";
     Move* move = new Move(Point(srcRow, srcCol), Point(destRow, destCol));
-    if (!board->canMove(move)) goto request_move;
+    if (!board->canMove(move, false))
+    {
+        cout << "Invalid move.\n";
+        return findMove(board);
+    }
     return move;
 }
 Move* ClientBot::findMove(Board* board)
@@ -38,17 +42,22 @@ get_move:
         return Move::resign();
     }
     int srcCol = cols.find(token[0]);
-    int srcRow = token[1] - '0';
+    int srcRow = token[1] - '1';
     int destCol = cols.find(token[3]);
-    int destRow = token[4] - '0';
+    int destRow = token[4] - '1';
     Move* move = new Move(Point(srcRow, srcCol), Point(destRow, destCol));
-    if (!board->canMove(move)) goto get_move;
+    if (!board->canMove(move, false)) goto get_move;
     return move;
 }
 int hostChessGame()
 {
     Game game = Game(new HostBot(), new ClientBot());
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0)
+    {
+        return 1;
+    }
     if (sockfd < 0)
     {
         cout << "Error opening socket" << endl;
@@ -58,7 +67,7 @@ int hostChessGame()
     memset(&hostAddress, 0, sizeof(sockaddr_in));
     hostAddress.sin_family = AF_INET;
     hostAddress.sin_addr.s_addr = INADDR_ANY;
-    hostAddress.sin_port = htons(DEFAULT_PORT);
+    hostAddress.sin_port = DEFAULT_PORT;
     if (bind(sockfd, (sockaddr*)&hostAddress, sizeof(sockaddr_in)) < 0)
     {
         cout << "Error binding" << endl;
@@ -94,9 +103,9 @@ int hostChessGame()
         read(newsockfd, buffer, 15);
         if (strcmp(buffer, "ready") == 0)
         {
-            string boardString;
-            stringstream stream(boardString);
+            stringstream stream;
             stream << *game.getCurrentBoard();
+            string boardString = stream.str();
             size_t stringLength = boardString.size() + 1;
             write(newsockfd, &stringLength, sizeof(size_t));
             write(newsockfd, boardString.c_str(), stringLength);
@@ -118,11 +127,16 @@ int connectChessGame(const char* hostName)
     sockaddr_in hostAddress;
     hostent* host;
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0)
+    {
+        return 1;
+    }
     host = gethostbyname(hostName);
     memset(&hostAddress, 0, sizeof(sockaddr_in));
     hostAddress.sin_family = AF_INET;
     memcpy(&hostAddress.sin_addr.s_addr, host->h_addr, host->h_length);
-    hostAddress.sin_port = htons(DEFAULT_PORT);
+    hostAddress.sin_port = DEFAULT_PORT;
     if (connect(sockfd, (sockaddr*)&hostAddress, sizeof(hostAddress)) < 0)
     {
         cout << "Error connecting to " << hostName << endl;
@@ -153,7 +167,7 @@ int connectChessGame(const char* hostName)
         }
         else if (cmd == "enter_move")
         {
-            cout << "Please enter your move in format [A1 B2]:";
+            cout << "Please enter your move in format [A1 B2]: ";
             string token;
             cin >> token;
             memcpy(buffer, token.c_str(), token.size() + 1);
