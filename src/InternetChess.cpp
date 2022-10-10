@@ -75,7 +75,6 @@ Move* HostBot::findMove(Board* board)
     int srcRow = token[1] - '1';
     int destCol = cols.find(token[3]);
     int destRow = token[4] - '1';
-    cout << "(" << srcRow << ", " << srcCol << "), (" << destRow << ", " << destCol << ")\n";
     Move* move = new Move(Point(srcRow, srcCol), Point(destRow, destCol));
     if (!board->canMove(move, false))
     {
