@@ -3,7 +3,7 @@
 SRCS = $(wildcard src/*.cpp)
 OBJS = ${SRCS:.cpp=.o}
 all: ${OBJS}
-	g++ ${OBJS} -o ichess -lchess -g
+	g++ ${OBJS} -o ichess -lchess -g -lboost_program_options
 	rm -f ${OBJS}
 clean:
 	rm -f ${OBJS} ${GLADE_OBJS} ichess

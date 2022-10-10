@@ -2,10 +2,66 @@
 #include <memory.h>
 #include <arpa/inet.h>
 #include <sstream>
+#include <boost/program_options.hpp>
+using namespace boost::program_options;
 using namespace std;
 using namespace chess;
 const string cols = "ABCDEFGH";
-int newsockfd;
+ClientBot::ClientBot()
+{
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0)
+    {
+        exit(1);
+    }
+    if (sockfd < 0)
+    {
+        cout << "Error opening socket" << endl;
+        exit(2);
+    }
+    sockaddr_in hostAddress;
+    memset(&hostAddress, 0, sizeof(sockaddr_in));
+    hostAddress.sin_family = AF_INET;
+    hostAddress.sin_addr.s_addr = INADDR_ANY;
+    hostAddress.sin_port = DEFAULT_PLAYER_PORT;
+    if (bind(sockfd, (sockaddr*)&hostAddress, sizeof(sockaddr_in)) < 0)
+    {
+        cout << "Error binding" << endl;
+        exit(3);
+    }
+    cout << "Waiting for client" << endl;
+    cout << "Host Name: " << gethostent()->h_name << endl;
+    hostent* hostInfo = gethostent();
+    while (*(hostInfo->h_aliases))
+    {
+        cout << "Alias Name: " << *(hostInfo->h_aliases++) << endl;
+    }
+    while (*(hostInfo->h_addr_list))
+    {
+        cout << "IP Address: " << inet_ntoa(*(in_addr*)(*(hostInfo->h_addr_list++))) << endl;
+    }
+    listen(sockfd, 5);
+    sockaddr clientAddress;
+    socklen_t clientLength = sizeof(clientAddress);
+    newsockfd = accept(sockfd, &clientAddress, &clientLength);
+    if (newsockfd < 0)
+    {
+        cout << "Error accepting" << endl;
+        exit(4);
+    }
+    char buffer[16];
+    memcpy(buffer, "ready5483", 10);
+    write(newsockfd, buffer, 15);
+    memset(buffer, 0, 16);
+    read(newsockfd, buffer, 15);
+    if (strcmp(buffer, "ready3845") != 0)
+    {
+        cout << "Client technology incompatable\n";
+        exit(5);
+    }
+    cout << "Found client" << endl;
+}
 Move* HostBot::findMove(Board* board)
 {
     cout << "Please enter your move in format [A1 B2]: ";
@@ -50,86 +106,71 @@ get_move:
     if (!board->canMove(move, false)) goto get_move;
     return move;
 }
-int hostChessGame()
+void ClientBot::handlePrint(Board* board)
 {
-    Game game = Game(new HostBot(), new ClientBot());
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    int opt = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0)
-    {
-        return 1;
-    }
-    if (sockfd < 0)
-    {
-        cout << "Error opening socket" << endl;
-        return 2;
-    }
-    sockaddr_in hostAddress;
-    memset(&hostAddress, 0, sizeof(sockaddr_in));
-    hostAddress.sin_family = AF_INET;
-    hostAddress.sin_addr.s_addr = INADDR_ANY;
-    hostAddress.sin_port = DEFAULT_PORT;
-    if (bind(sockfd, (sockaddr*)&hostAddress, sizeof(sockaddr_in)) < 0)
-    {
-        cout << "Error binding" << endl;
-        return 3;
-    }
-    cout << "Waiting for client" << endl;
-    cout << "Host Name: " << gethostent()->h_name << endl;
-    hostent* hostInfo = gethostent();
-    while (*(hostInfo->h_aliases))
-    {
-        cout << "Alias Name: " << *(hostInfo->h_aliases++) << endl;
-    }
-    while (*(hostInfo->h_addr_list))
-    {
-        cout << "IP Address: " << inet_ntoa(*(in_addr*)(*(hostInfo->h_addr_list++))) << endl;
-    }
-    listen(sockfd, 5);
-    sockaddr clientAddress;
-    socklen_t clientLength = sizeof(clientAddress);
-    newsockfd = accept(sockfd, &clientAddress, &clientLength);
-    if (newsockfd < 0)
-    {
-        cout << "Error accepting" << endl;
-        return 4;
-    }
     char buffer[16];
-    memcpy(buffer, "ready5483", 10);
+    memcpy(buffer, "print", 6);
     write(newsockfd, buffer, 15);
     memset(buffer, 0, 16);
     read(newsockfd, buffer, 15);
-    if (strcmp(buffer, "ready3845") != 0)
+    if (strcmp(buffer, "ready") == 0)
     {
-        cout << "Client technology incompatable\n";
-        return 5;
+        stringstream stream;
+        stream << *board;
+        string boardString = stream.str();
+        size_t stringLength = boardString.size() + 1;
+        write(newsockfd, &stringLength, sizeof(size_t));
+        write(newsockfd, boardString.c_str(), stringLength);
     }
-    cout << "Found client" << endl;
-    while (game.getCurrentBoard()->winner == -1)
-    {
-        cout << *game.getCurrentBoard();
-        memcpy(buffer, "print", 6);
-        write(newsockfd, buffer, 15);
-        memset(buffer, 0, 16);
-        read(newsockfd, buffer, 15);
-        if (strcmp(buffer, "ready") == 0)
-        {
-            stringstream stream;
-            stream << *game.getCurrentBoard();
-            string boardString = stream.str();
-            size_t stringLength = boardString.size() + 1;
-            write(newsockfd, &stringLength, sizeof(size_t));
-            write(newsockfd, boardString.c_str(), stringLength);
-        }
-        game.step();
-    }
-    cout << "Winner: " << game.getCurrentBoard()->winner ? "Black" : "White";
+}
+void ClientBot::handleWinner(int winner)
+{
+    char buffer[16];
     memcpy(buffer, "game_over", 10);
     write(newsockfd, buffer, 15);
-    memcpy(buffer, (game.getCurrentBoard()->winner ? "white" : "black"), 6);
+    memcpy(buffer, (winner ? "white" : "black"), 6);
     write(newsockfd, buffer, 15);
     close(newsockfd);
     close(sockfd);
+}
+int hostChessGame(string whiteBotQuery, string blackBotQuery)
+{
+    Bot* whiteBot, *blackBot;
+    if (whiteBotQuery == "host")
+    {
+        whiteBot = new HostBot();
+    }
+    else if (whiteBotQuery == "client")
+    {
+        whiteBot = new ClientBot();
+    }
+    else if (whiteBotQuery == "random")
+    {
+        whiteBot = new RandomBot();
+    }
+    if (blackBotQuery == "host")
+    {
+        blackBot = new HostBot();
+    }
+    else if (blackBotQuery == "client")
+    {
+        blackBot = new ClientBot();
+    }
+    else if (blackBotQuery == "random")
+    {
+        blackBot = new RandomBot();
+    }
+    Game game = Game(whiteBot, blackBot);
+    while (game.getCurrentBoard()->winner == -1)
+    {
+        cout << *game.getCurrentBoard();
+        whiteBot->handlePrint(game.getCurrentBoard());
+        blackBot->handlePrint(game.getCurrentBoard());
+        game.step();
+    }
+    cout << "Winner: " << game.getCurrentBoard()->winner ? "Black" : "White";
+    whiteBot->handleWinner(game.getCurrentBoard()->winner);
+    blackBot->handleWinner(game.getCurrentBoard()->winner);
     return 0;
 }
 int connectChessGame(const char* hostName)
@@ -147,7 +188,7 @@ int connectChessGame(const char* hostName)
     memset(&hostAddress, 0, sizeof(sockaddr_in));
     hostAddress.sin_family = AF_INET;
     memcpy(&hostAddress.sin_addr.s_addr, host->h_addr, host->h_length);
-    hostAddress.sin_port = DEFAULT_PORT;
+    hostAddress.sin_port = DEFAULT_PLAYER_PORT;
     if (connect(sockfd, (sockaddr*)&hostAddress, sizeof(hostAddress)) < 0)
     {
         cout << "Error connecting to " << hostName << endl;
@@ -196,17 +237,34 @@ int connectChessGame(const char* hostName)
 }
 int main(int argc, char const *argv[])
 {
-    if (argc != 2)
+    options_description desc("Allowed options");
+    desc.add_options()
+        ("help", "produce help message")
+        ("host,h", "host a game of chess")
+        ("connect,c", value<string>()->default_value("localhost"), "connect to a game of chess")
+        ("view,v", value<string>()->default_value("localhost"), "view a game of chess")
+        ("white,W", value<string>()->default_value("host"), "set up the white bot")
+        ("black,B", value<string>()->default_value("client"), "set up the black bot")
+    ;
+    variables_map vm;
+    store(parse_command_line(argc, argv, desc), vm);
+    notify(vm);
+    if (vm.count("help"))
     {
-        cout << "Invalid arguments. Needs [host|computername]" << endl;
-        return 1;
+        cout << desc << endl;
+        return 0;
     }
-    if (string(argv[1]) == "host")
+    if (vm.count("host"))
     {
-        return hostChessGame();
+        return hostChessGame(vm["white"].as<string>(), vm["black"].as<string>());
+    }
+    else if (vm.count("connect"))
+    {
+        return connectChessGame(vm["connect"].as<string>().c_str());
     }
     else
     {
-        return connectChessGame(argv[1]);
+        cout << "Not supported yet." << endl;
+        exit(1);
     }
 }

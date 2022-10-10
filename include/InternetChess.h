@@ -1,7 +1,9 @@
 #ifndef INTERNETCHESS_H
 #define INTERNETCHESS_H
-#define DEFAULT_PORT 3879
+#define DEFAULT_PLAYER_PORT 3879
+#define DEFAULT_VIEWING_PORT 3880
 #include <chess/Chess.h>
+#include <chess/Bots.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -18,9 +20,13 @@ namespace chess
     };
     class ClientBot : public Bot
     {
+    private:
+        int newsockfd, sockfd;
     public:
-        ClientBot() = default;
+        ClientBot();
         Move* findMove(Board* board);
+        void handlePrint(Board* board);
+        void handleWinner(int winner);
     };
 }
 #endif
