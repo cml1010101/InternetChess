@@ -3,7 +3,6 @@
 #define DEFAULT_PLAYER_PORT 3879
 #define DEFAULT_VIEWING_PORT 3880
 #include <chess/Chess.h>
-#include <chess/Bots.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -12,6 +11,15 @@
 #include <iostream>
 namespace chess
 {
+    class RandomBot : public Bot
+    {
+    public:
+        RandomBot()
+        {
+            srand(time(NULL));
+        }
+        Move* findMove(Board* board);
+    };
     class HostBot : public Bot
     {
     public:

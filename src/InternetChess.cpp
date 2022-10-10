@@ -64,6 +64,7 @@ ClientBot::ClientBot()
 }
 Move* HostBot::findMove(Board* board)
 {
+    if (board->isDraw()) return Move::resign();
     cout << "Please enter your move in format [A1 B2]: ";
     string token;
     getline(cin, token);
@@ -85,6 +86,7 @@ Move* HostBot::findMove(Board* board)
 }
 Move* ClientBot::findMove(Board* board)
 {
+    if (board->isDraw()) return Move::resign();
     char buffer[16];
 get_move:
     memset(buffer, 0, 16);
@@ -127,10 +129,25 @@ void ClientBot::handleWinner(int winner)
     char buffer[16];
     memcpy(buffer, "game_over", 10);
     write(newsockfd, buffer, 15);
-    memcpy(buffer, (winner ? "white" : "black"), 6);
+    memcpy(buffer, (winner ? "black" : "white"), 6);
     write(newsockfd, buffer, 15);
     close(newsockfd);
     close(sockfd);
+}
+Move* RandomBot::findMove(Board* board)
+{
+    vector<Move*> possibleMoves = {};
+    auto pieces = board->getPieces(board->next);
+    for (auto piece : pieces)
+    {
+        auto moves = piece->getPossibleMoves(board);
+        for (auto move : moves)
+        {
+            possibleMoves.push_back(move);
+        }
+    }
+    if (possibleMoves.size() == 0 || board->isDraw()) return Move::resign();
+    return possibleMoves[rand() % possibleMoves.size()];
 }
 int hostChessGame(string whiteBotQuery, string blackBotQuery)
 {
@@ -147,6 +164,10 @@ int hostChessGame(string whiteBotQuery, string blackBotQuery)
     {
         whiteBot = new RandomBot();
     }
+    else if (whiteBotQuery == "minimax")
+    {
+        whiteBot = new MinimaxBot(2);
+    }
     if (blackBotQuery == "host")
     {
         blackBot = new HostBot();
@@ -159,6 +180,10 @@ int hostChessGame(string whiteBotQuery, string blackBotQuery)
     {
         blackBot = new RandomBot();
     }
+    else if (blackBotQuery == "minimax")
+    {
+        blackBot = new MinimaxBot(2);
+    }
     Game game = Game(whiteBot, blackBot);
     while (game.getCurrentBoard()->winner == -1)
     {
@@ -167,7 +192,7 @@ int hostChessGame(string whiteBotQuery, string blackBotQuery)
         blackBot->handlePrint(game.getCurrentBoard());
         game.step();
     }
-    cout << "Winner: " << game.getCurrentBoard()->winner ? "Black" : "White";
+    cout << "Winner: " << (game.getCurrentBoard()->winner ? "black" : "white") << endl;
     whiteBot->handleWinner(game.getCurrentBoard()->winner);
     blackBot->handleWinner(game.getCurrentBoard()->winner);
     return 0;
