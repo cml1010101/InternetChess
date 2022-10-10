@@ -76,7 +76,7 @@ Move* HostBot::findMove(Board* board)
     int destCol = cols.find(token[3]);
     int destRow = token[4] - '1';
     Move* move = new Move(Point(srcRow, srcCol), Point(destRow, destCol));
-    if (!board->canMove(move, false))
+    if (!board->canMove(move))
     {
         cout << "Invalid move.\n";
         return findMove(board);
@@ -102,7 +102,7 @@ get_move:
     int destCol = cols.find(token[3]);
     int destRow = token[4] - '1';
     Move* move = new Move(Point(srcRow, srcCol), Point(destRow, destCol));
-    if (!board->canMove(move, false)) goto get_move;
+    if (!board->canMove(move)) goto get_move;
     return move;
 }
 void ClientBot::handlePrint(Board* board)
